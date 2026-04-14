@@ -1,0 +1,39 @@
+@import "tailwindcss";
+/*@tailwind base;
+@tailwind components;
+@tailwind utilities;*/
+
+/* Compatibility patch for mapbox-gl-draw with maplibre-gl v3+ and Tailwind CSS */
+.maplibregl-control-container .mapboxgl-ctrl {
+  pointer-events: auto !important;
+}
+
+.mapboxgl-ctrl-group {
+  border-radius: 4px;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mapboxgl-ctrl-group > button {
+  width: 29px;
+  height: 29px;
+  display: block;
+  padding: 0;
+  outline: none;
+  border: 0;
+  border-bottom: 1px solid #ddd;
+  box-sizing: border-box;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+.mapboxgl-ctrl-group > button:last-child {
+  border-bottom: 0;
+}
+
+.mapboxgl-ctrl-group > button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}

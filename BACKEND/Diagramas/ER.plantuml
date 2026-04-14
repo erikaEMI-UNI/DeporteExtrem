@@ -1,0 +1,134 @@
+@startuml
+hide circle
+skinparam linetype ortho
+
+' =========================
+' ENTIDADES
+' =========================
+
+entity User {
+  _id : ObjectId
+  --
+  nombre : String
+  email : String
+  password : String
+  ci : String
+  celular : String
+  ultimoLogin : Date
+  activo : Boolean
+  tokenRecuperacion : String
+  expiracionToken : Date
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Role {
+  _id : ObjectId
+  --
+  nombre : String
+  descripcion : String
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Permission {
+  _id : ObjectId
+  --
+  codename : String
+  nombre : String
+  descripcion : String
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Actividad {
+  _id : ObjectId
+  --
+  nombre : String
+  descripcion : String
+  nivelRiesgo : String
+  recomendaciones : String
+  precio : Number
+  duracion : String
+  capacidadMaxima : Number
+  activo : Boolean
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Reserva {
+  _id : ObjectId
+  --
+  tipoTour : String
+  fechaActividad : Date
+  numeroPersonas : Number
+  categoria : String
+  costoTotal : Number
+  estado : String
+  notificacionEnviada : Boolean
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Itinerario {
+  _id : ObjectId
+  --
+  recurso : String
+  referencia : String
+  estado : String
+  fechaInicio : Date
+  fechaFin : Date
+  observaciones : String
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity FichaMedica {
+  _id : ObjectId
+  --
+  grupoSanguineo : String
+  alergias : String[]
+  enfermedades : String[]
+  medicamentos : String[]
+  archivoPdf : String
+  createdAt : Date
+  updatedAt : Date
+}
+
+entity Historial {
+  _id : ObjectId
+  --
+  accion : String
+  detalles : Mixed
+  fecha : Date
+}
+
+entity Reporte {
+  _id : ObjectId
+  --
+  tipo : String
+  datos : Mixed
+  fecha : Date
+}
+
+' =========================
+' RELACIONES
+' =========================
+
+User }o--o{ Role : "tiene"
+Role }o--o{ Permission : "incluye"
+
+User }o--o{ Permission : "permisos directos"
+
+User ||--o{ Reserva : "realiza"
+Actividad ||--o{ Reserva : "es reservada en"
+
+Actividad ||--o{ Itinerario : "usa"
+
+User ||--|| FichaMedica : "posee"
+
+User ||--o{ Historial : "genera"
+
+User ||--o{ Reporte : "genera"
+
+@enduml

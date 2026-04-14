@@ -1,0 +1,1400 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import MapSection from "./MapSection";
+
+/* ============================================================================
+   CONSTANTES Y CONFIGURACIÓN
+   ============================================================================ */
+const API_BASE_URL = "http://localhost:3000/api";
+const MAX_MOSAIC_IMAGES = 3;
+
+const NIVEL_CONFIG = {
+  Alto: {
+    color: "bg-red-100 text-red-700 border-red-200",
+    gradient: "from-red-500 to-orange-500",
+    categoria: "Avanzado"
+  },
+  Medio: {
+    color: "bg-amber-100 text-amber-700 border-amber-200",
+    gradient: "from-amber-500 to-yellow-500",
+    categoria: "Intermedio"
+  },
+  Bajo: {
+    color: "bg-green-100 text-green-700 border-green-200",
+    gradient: "from-green-500 to-emerald-500",
+    categoria: "Principiante"
+  }
+};
+
+const TOUR_MULTIPLICADORES = {
+  Promocional: 0.8,
+  VIP: 1.5,
+  Intermedio: 0.9
+};
+
+/* ============================================================================
+   UTILIDADES
+   ============================================================================ */
+const getYouTubeEmbedUrl = (url) => {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[2].length === 11 
+    ? `https://www.youtube.com/embed/${match[2]}?autoplay=1&rel=0`
+    : url;
+};
+
+/* ============================================================================
+   COMPONENTES DE ICONOS (REUTILIZABLES)
+   ============================================================================ */
+const createIcon = (path) => ({ className = "", size = 24 }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {path}
+  </svg>
+);
+
+// Definición de paths para cada icono
+const ICON_PATHS = {
+  X: [<path key="x1" d="M18 6L6 18" />, <path key="x2" d="M6 6L18 18" />],
+  MapPin: [<path key="pin" d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />, <circle key="circle" cx="12" cy="10" r="3" />],
+  Mountain: [<path key="mountain" d="M8 3l4 8 5-5 5 15H2L8 3z" />],
+  Zap: [<polygon key="zap" points="13,2 3,14 12,14 11,22 21,10 12,10 13,2" />],
+  Trophy: [
+    <path key="t1" d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />,
+    <path key="t2" d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />,
+    <path key="t3" d="M4 22h16" />,
+    <path key="t4" d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />,
+    <path key="t5" d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />,
+    <path key="t6" d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+  ],
+  Clock: [<circle key="circle" cx="12" cy="12" r="10" />, <polyline key="poly" points="12 6 12 12 16 14" />],
+  Users: [
+    <path key="u1" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />,
+    <circle key="u2" cx="9" cy="7" r="4" />,
+    <path key="u3" d="M22 21v-2a4 4 0 0 0-3-3.87" />,
+    <path key="u4" d="M16 3.13a4 4 0 0 1 0 7.75" />
+  ],
+  ChevronLeft: [<polyline key="left" points="15 18 9 12 15 6" />],
+  ChevronRight: [<polyline key="right" points="9 18 15 12 9 6" />],
+  Video: [
+    <polygon key="v1" points="23 7 16 12 23 17 23 7" />,
+    <rect key="v2" x="1" y="5" width="15" height="14" rx="2" ry="2" />
+  ],
+  Package: [
+    <line key="p1" x1="16.5" x2="7.5" y1="9.4" y2="4.21" />,
+    <path key="p2" d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />,
+    <polyline key="p3" points="3.29 7 12 12 20.71 7" />,
+    <line key="p4" x1="12" x2="12" y1="22" y2="12" />
+  ],
+  Calendar: [
+    <rect key="c1" x="3" y="4" width="18" height="18" rx="2" ry="2" />,
+    <line key="c2" x1="16" y1="2" x2="16" y2="6" />,
+    <line key="c3" x1="8" y1="2" x2="8" y2="6" />,
+    <line key="c4" x1="3" y1="10" x2="21" y2="10" />
+  ],
+  User: [
+    <path key="user1" d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />,
+    <circle key="user2" cx="12" cy="7" r="4" />
+  ],
+  DollarSign: [
+    <line key="d1" x1="12" y1="1" x2="12" y2="23" />,
+    <path key="d2" d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  ]
+};
+
+// Crear componentes de iconos dinámicamente
+export const X = createIcon(ICON_PATHS.X);
+export const MapPin = createIcon(ICON_PATHS.MapPin);
+export const Mountain = createIcon(ICON_PATHS.Mountain);
+export const Zap = createIcon(ICON_PATHS.Zap);
+export const Trophy = createIcon(ICON_PATHS.Trophy);
+export const Clock = createIcon(ICON_PATHS.Clock);
+export const Users = createIcon(ICON_PATHS.Users);
+export const ChevronLeft = createIcon(ICON_PATHS.ChevronLeft);
+export const ChevronRight = createIcon(ICON_PATHS.ChevronRight);
+export const Video = createIcon(ICON_PATHS.Video);
+export const Package = createIcon(ICON_PATHS.Package);
+export const Calendar = createIcon(ICON_PATHS.Calendar);
+export const User = createIcon(ICON_PATHS.User);
+export const DollarSign = createIcon(ICON_PATHS.DollarSign);
+
+/* ============================================================================
+   COMPONENTE: ImageMosaic - Galería de imágenes interactiva
+   ============================================================================ */
+const ImageMosaic = ({ images, maxImages = 3, onImageClick, hasVideo360 }) => {
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const displayedImages = images.slice(0, maxImages);
+  const totalImages = images.length;
+  const hasMore = totalImages > maxImages;
+
+  const openLightbox = (index) => {
+    setSelectedImage(index);
+    setIsLightboxOpen(true);
+  };
+
+  const navigateImage = (direction) => {
+    setSelectedImage((prev) => (prev + direction + totalImages) % totalImages);
+  };
+
+  // Renderizado condicional según cantidad de imágenes
+  const renderSingleImage = () => (
+    <div
+      className="relative overflow-hidden rounded-2xl cursor-pointer group h-80"
+      onClick={() => hasVideo360 ? onImageClick('video') : openLightbox(0)}
+    >
+      <img
+        src={displayedImages[0]}
+        alt="Imagen principal"
+        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+      />
+      {hasVideo360 && renderVideoOverlay(true)}
+    </div>
+  );
+
+  const renderDoubleImage = () => (
+    <div className="grid grid-cols-2 gap-2">
+      {[0, 1].map((index) => (
+        <div
+          key={index}
+          className="relative overflow-hidden rounded-2xl cursor-pointer group h-60"
+          onClick={() => index === 0 && hasVideo360 ? onImageClick('video') : openLightbox(index)}
+        >
+          <img
+            src={displayedImages[index]}
+            alt={`Imagen ${index + 1}`}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+          />
+          {index === 0 && hasVideo360 && renderVideoOverlay(false)}
+          {index === 0 && hasVideo360 && (
+            <div className="absolute top-3 right-3 bg-red-600 text-white px-3 py-1 rounded-full font-bold text-xs">
+              360°
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderTripleImage = () => (
+    <div className="space-y-2">
+      <div
+        className="relative overflow-hidden rounded-2xl cursor-pointer group h-80"
+        onClick={() => hasVideo360 ? onImageClick('video') : openLightbox(0)}
+      >
+        <img
+          src={displayedImages[0]}
+          alt="Imagen principal"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+        />
+        {hasVideo360 && renderVideoOverlay(true)}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <ImageTile
+          image={displayedImages[1] || "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800"}
+          title="Nombre del Deporte"
+          subtitle="Click para más info"
+          onClick={() => onImageClick('deporte')}
+        />
+        <ImageTile
+          image={displayedImages[2] || "https://images.unsplash.com/photo-1520877880798-5ee004e3f11e?w=800"}
+          title="Equipo Necesario"
+          subtitle="Click para reservar"
+          icon={<Package size={20} />}
+          badge={hasMore ? `+${totalImages - maxImages} más` : null}
+          onClick={() => onImageClick('equipo')}
+        />
+      </div>
+    </div>
+  );
+
+  const renderVideoOverlay = (isLarge) => (
+    <>
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className={`${isLarge ? 'w-20 h-20' : 'w-16 h-16'} bg-white/90 rounded-full flex items-center justify-center`}>
+            <Video className="text-red-600" size={isLarge ? 40 : 32} />
+          </div>
+        </div>
+      </div>
+      {isLarge && (
+        <div className="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2">
+          <Video size={16} />
+          360° Video
+        </div>
+      )}
+    </>
+  );
+
+  const ImageTile = ({ image, title, subtitle, icon, badge, onClick }) => (
+    <div
+      className="relative overflow-hidden rounded-2xl cursor-pointer group h-48"
+      onClick={onClick}
+    >
+      <img
+        src={image}
+        alt={title}
+        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      <div className="absolute bottom-3 left-3 right-3 text-white">
+        <p className="font-bold text-lg mb-1 flex items-center gap-2">
+          {icon}
+          {title}
+        </p>
+        <p className="text-xs opacity-90">{subtitle}</p>
+      </div>
+      {badge && (
+        <div className="absolute top-3 right-3 bg-white/90 text-gray-900 px-3 py-1 rounded-full font-bold text-xs">
+          {badge}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderLightbox = () => (
+    <div
+      className="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4"
+      onClick={() => setIsLightboxOpen(false)}
+    >
+      <button
+        onClick={() => setIsLightboxOpen(false)}
+        className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-full p-3 transition-all z-10"
+      >
+        <X className="w-6 h-6" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); navigateImage(-1); }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full p-3 transition-all"
+      >
+        <ChevronLeft className="w-8 h-8" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); navigateImage(1); }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20 rounded-full p-3 transition-all"
+      >
+        <ChevronRight className="w-8 h-8" />
+      </button>
+      <div className="max-w-6xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={images[selectedImage]}
+          alt={`Imagen ${selectedImage + 1}`}
+          className="w-full h-full object-contain rounded-2xl"
+        />
+        <div className="text-center mt-4">
+          <p className="text-white font-semibold">
+            {selectedImage + 1} / {totalImages}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {displayedImages.length === 1 && renderSingleImage()}
+      {displayedImages.length === 2 && renderDoubleImage()}
+      {displayedImages.length >= 3 && renderTripleImage()}
+      {isLightboxOpen && renderLightbox()}
+    </>
+  );
+};
+
+/* ============================================================================
+   COMPONENTE: ReservaModal - Modal para crear reservaciones
+   ============================================================================ */
+const ReservaModal = ({ isOpen, onClose, actividad }) => {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    tipoTour: '',
+    fechas: '',
+    categoria: '',
+    numeroPersonas: 1
+  });
+  const [costoTotal, setCostoTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Sincronizar categoría con nivel de riesgo
+  useEffect(() => {
+    if (!actividad) return;
+    setFormData(prev => ({
+      ...prev,
+      categoria: NIVEL_CONFIG[actividad.nivel]?.categoria || 'Intermedio'
+    }));
+  }, [actividad]);
+
+  // Calcular costo total
+  useEffect(() => {
+    if (!actividad || !formData.numeroPersonas || !formData.tipoTour) {
+      setCostoTotal(0);
+      return;
+    }
+
+    const multiplicador = TOUR_MULTIPLICADORES[formData.tipoTour] || 1;
+    setCostoTotal(actividad.precio * multiplicador * formData.numeroPersonas);
+  }, [actividad, formData.numeroPersonas, formData.tipoTour]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePersonasChange = (e) => {
+    const value = parseInt(e.target.value) || 1;
+    setFormData(prev => ({ ...prev, numeroPersonas: value }));
+  };
+
+  const validateForm = () => {
+    if (!formData.tipoTour) return 'Por favor selecciona un tipo de tour';
+    if (!formData.fechas) return 'Por favor selecciona una fecha';
+    if (formData.numeroPersonas < 1) return 'El número de personas debe ser mayor a 0';
+    if (formData.numeroPersonas > actividad.capacidadMaxima) {
+      return `El número máximo de personas es ${actividad.capacidadMaxima}`;
+    }
+    return null;
+  };
+
+  const handleReservar = async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      onClose();
+      navigate('/login');
+      return;
+    }
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetch(`${API_BASE_URL}/reservas`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          actividad: actividad.id,
+          tipoTour: formData.tipoTour,
+          fechaActividad: formData.fechas,
+          numeroPersonas: formData.numeroPersonas,
+          categoria: formData.categoria,
+          costoTotal
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.msg || 'Error al crear la reserva');
+      }
+
+      alert('¡Reserva creada exitosamente!');
+      onClose();
+      navigate('/reservas');
+    } catch (err) {
+      console.error('Error creando reserva:', err);
+      setError(err.message || 'Error al crear la reserva');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen || !actividad) return null;
+
+  return (
+    <ModalContainer onClose={onClose} maxWidth="max-w-2xl">
+      <ModalHeader 
+        title="Reserva" 
+        icon={<Calendar size={24} />}
+        gradient="from-rose-500 to-pink-600"
+        onClose={onClose}
+      />
+      
+      <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+        {error && <ErrorMessage message={error} />}
+
+        <div className="space-y-6">
+          <ReadOnlyField 
+            label="Nombre Actividad" 
+            value={actividad.name} 
+          />
+
+          <SelectField
+            label="Tipo de tour *"
+            name="tipoTour"
+            value={formData.tipoTour}
+            onChange={handleInputChange}
+            options={[
+              { value: '', label: 'Seleccionar tipo' },
+              { value: 'Promocional', label: 'Promocionales (-20%)' },
+              { value: 'VIP', label: 'VIP (+50%)' },
+              { value: 'Intermedio', label: 'Intermedio (-10%)' }
+            ]}
+          />
+
+          <DateField
+            label="Fechas *"
+            name="fechas"
+            value={formData.fechas}
+            onChange={handleInputChange}
+          />
+
+          <CategoriaSelector 
+            categoria={formData.categoria} 
+          />
+
+          <NumberField
+            label="N° Personas *"
+            name="numeroPersonas"
+            value={formData.numeroPersonas}
+            onChange={handlePersonasChange}
+            min={1}
+            max={actividad.capacidadMaxima}
+            helperText={`Máximo: ${actividad.capacidadMaxima} personas`}
+          />
+
+          <CostoTotalDisplay 
+            costoTotal={costoTotal}
+            precioBase={actividad.precio}
+            numeroPersonas={formData.numeroPersonas}
+            tipoTour={formData.tipoTour}
+          />
+        </div>
+      </div>
+
+      <ModalFooter
+        onClose={onClose}
+        onConfirm={handleReservar}
+        loading={loading}
+        confirmText={loading ? 'Reservando...' : 'Reservar'}
+      />
+    </ModalContainer>
+  );
+};
+
+/* ============================================================================
+   COMPONENTE: Video360Modal - Modal para videos 360°
+   ============================================================================ */
+const Video360Modal = ({ isOpen, onClose, videoUrl, activityName, onReservar }) => {
+  if (!isOpen) return null;
+
+  const embedUrl = getYouTubeEmbedUrl(videoUrl);
+
+  return (
+    <ModalContainer onClose={onClose} maxWidth="max-w-6xl">
+      <ModalHeader 
+        title="Video 360° - Experiencia Inmersiva"
+        subtitle={activityName}
+        icon={<Video size={24} />}
+        gradient="from-red-600 to-orange-600"
+        onClose={onClose}
+      />
+      
+      <div className="p-6">
+        {embedUrl ? (
+          <div className="relative rounded-2xl overflow-hidden" style={{ paddingBottom: '56.25%' }}>
+            <iframe
+              className="absolute top-0 left-0 w-full h-full"
+              src={embedUrl}
+              title="Video 360°"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <VideoPlaceholder />
+        )}
+        
+        <TipMessage message="Arrastra con el mouse dentro del video para explorar la vista 360°. Activa pantalla completa para una mejor experiencia." />
+        
+        <ReservaCTA onReservar={onReservar} />
+      </div>
+    </ModalContainer>
+  );
+};
+
+/* ============================================================================
+   COMPONENTE: DeporteModal - Modal de información del deporte
+   ============================================================================ */
+const DeporteModal = ({ isOpen, onClose, deporte, actividad, onReservar }) => {
+  if (!isOpen) return null;
+
+  return (
+    <ModalContainer onClose={onClose} maxWidth="max-w-3xl">
+      <ModalHeader 
+        title={deporte || "Deporte Extremo"}
+        icon={<Mountain size={24} />}
+        gradient="from-cyan-600 to-blue-600"
+        onClose={onClose}
+      />
+      
+      <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+        <img
+          src={actividad?.images?.[1] || "https://images.unsplash.com/photo-1551632811-561732d1e306?w=1200"}
+          alt="Deporte extremo"
+          className="w-full h-64 object-cover rounded-2xl mb-6"
+        />
+
+        <div className="space-y-6">
+          <ActivityDescription 
+            name={actividad?.name || deporte}
+            description={actividad?.description}
+          />
+          
+          {actividad?.recomendaciones && (
+            <RecomendacionesBox recomendaciones={actividad.recomendaciones} />
+          )}
+          
+          <ActivityStats 
+            nivel={actividad?.nivel}
+            duracion={actividad?.duracion}
+          />
+          
+          <ReservaCTA onReservar={onReservar} />
+        </div>
+      </div>
+    </ModalContainer>
+  );
+};
+
+/* ============================================================================
+   COMPONENTE: EquipoModal - Modal de equipamiento necesario
+   ============================================================================ */
+const EquipoModal = ({ isOpen, onClose, onReservar }) => {
+  if (!isOpen) return null;
+
+  const equipamiento = [
+    { nombre: "Casco de Seguridad", imagen: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400", incluido: true, descripcion: "Casco homologado para deportes extremos" },
+    { nombre: "Arnés Profesional", imagen: "https://images.unsplash.com/photo-1522163182402-834f871fd851?w=400", incluido: true, descripcion: "Arnés de seguridad certificado" },
+    { nombre: "Cuerdas y Mosquetones", imagen: "https://images.unsplash.com/photo-1589385373846-c29d4cc77059?w=400", incluido: true, descripcion: "Material de escalada profesional" },
+    { nombre: "Ropa Deportiva", imagen: "https://images.unsplash.com/photo-1556906781-9a412961c28c?w=400", incluido: false, descripcion: "Vestimenta cómoda para actividad física" },
+    { nombre: "Calzado Apropiado", imagen: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400", incluido: false, descripcion: "Zapatillas de trekking o deportivas" },
+    { nombre: "Protector Solar", imagen: "https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=400", incluido: false, descripcion: "Factor 50+ recomendado" }
+  ];
+
+  return (
+    <ModalContainer onClose={onClose} maxWidth="max-w-7xl">
+      <ModalHeader 
+        title="Equipo Necesario"
+        icon={<Package size={24} />}
+        gradient="from-purple-600 to-pink-600"
+        onClose={onClose}
+      />
+      
+      <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+        <p className="text-gray-600 mb-6">
+          Todo el equipamiento de seguridad está incluido. Solo necesitas traer tu ropa deportiva y ganas de aventura.
+        </p>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <Modelo3DPreview />
+          
+          <EquipamientoList items={equipamiento} />
+        </div>
+
+        <ReservaCTA onReservar={onReservar} />
+      </div>
+    </ModalContainer>
+  );
+};
+
+/* ============================================================================
+   COMPONENTES AUXILIARES REUTILIZABLES
+   ============================================================================ */
+
+// Modal Container
+const ModalContainer = ({ children, onClose, maxWidth = "max-w-5xl" }) => (
+  <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4" onClick={onClose}>
+    <div className={`bg-white rounded-3xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-hidden`} onClick={(e) => e.stopPropagation()}>
+      {children}
+    </div>
+  </div>
+);
+
+// Modal Header
+const ModalHeader = ({ title, subtitle, icon, gradient, onClose }) => (
+  <div className={`bg-gradient-to-r ${gradient} px-6 py-4 flex items-center justify-between`}>
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+        {icon}
+      </div>
+      <div>
+        <h3 className="text-2xl font-bold text-white">{title}</h3>
+        {subtitle && <p className="text-white/80 text-sm">{subtitle}</p>}
+      </div>
+    </div>
+    <button onClick={onClose} className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors">
+      <X size={24} />
+    </button>
+  </div>
+);
+
+// Modal Footer
+const ModalFooter = ({ onClose, onConfirm, loading, confirmText = "Confirmar", cancelText = "Cancelar" }) => (
+  <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+    <button
+      onClick={onClose}
+      disabled={loading}
+      className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {cancelText}
+    </button>
+    <button
+      onClick={onConfirm}
+      disabled={loading}
+      className="px-8 py-3 bg-gradient-to-r from-rose-500 to-pink-600 text-white font-bold rounded-lg hover:shadow-xl transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+    >
+      {confirmText}
+    </button>
+  </div>
+);
+
+// Field Components
+const ReadOnlyField = ({ label, value }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>
+    <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-medium">
+      {value}
+    </div>
+  </div>
+);
+
+const SelectField = ({ label, name, value, onChange, options }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>
+    <select
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+      required
+    >
+      {options.map(opt => (
+        <option key={opt.value} value={opt.value}>{opt.label}</option>
+      ))}
+    </select>
+  </div>
+);
+
+const DateField = ({ label, name, value, onChange }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>
+    <input
+      type="date"
+      name={name}
+      value={value}
+      onChange={onChange}
+      min={new Date().toISOString().split('T')[0]}
+      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+      required
+    />
+  </div>
+);
+
+const NumberField = ({ label, name, value, onChange, min, max, helperText }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">{label}</label>
+    <input
+      type="number"
+      name={name}
+      value={value}
+      onChange={onChange}
+      min={min}
+      max={max}
+      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+      required
+    />
+    {helperText && <p className="text-xs text-gray-500 mt-1">{helperText}</p>}
+  </div>
+);
+
+const CategoriaSelector = ({ categoria }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">
+      Categoría (según nivel de riesgo)
+    </label>
+    <div className="flex gap-3 flex-wrap pointer-events-none opacity-75">
+      {['Principiante', 'Intermedio', 'Avanzado'].map(level => (
+        <button
+          key={level}
+          type="button"
+          disabled
+          className={`px-4 py-2 rounded-lg font-semibold ${
+            categoria === level
+              ? level === 'Principiante' ? 'bg-cyan-500 text-white'
+                : level === 'Intermedio' ? 'bg-lime-500 text-white'
+                : 'bg-fuchsia-500 text-white'
+              : level === 'Principiante' ? 'bg-cyan-100 text-cyan-700'
+                : level === 'Intermedio' ? 'bg-lime-100 text-lime-700'
+                : 'bg-fuchsia-100 text-fuchsia-700'
+          }`}
+        >
+          {level}
+        </button>
+      ))}
+    </div>
+    <p className="text-xs text-gray-500 mt-2">
+      ℹ️ La categoría se asigna automáticamente según el nivel de riesgo de la actividad
+    </p>
+  </div>
+);
+
+const CostoTotalDisplay = ({ costoTotal, precioBase, numeroPersonas, tipoTour }) => (
+  <div>
+    <label className="block text-sm font-bold text-gray-700 mb-2">Costo Total</label>
+    <div className="w-full px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+      <div className="flex items-center gap-2">
+        <DollarSign className="text-green-600" size={20} />
+        <span className="text-2xl font-black text-green-700">
+          Bs. {costoTotal.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      </div>
+      {tipoTour && (
+        <p className="text-xs text-gray-600 mt-1">
+          Precio base: Bs. {precioBase.toLocaleString()} × {numeroPersonas} persona(s)
+          {tipoTour === 'Promocional' && ' (-20%)'}
+          {tipoTour === 'VIP' && ' (+50%)'}
+          {tipoTour === 'Intermedio' && ' (-10%)'}
+        </p>
+      )}
+    </div>
+  </div>
+);
+
+const ErrorMessage = ({ message }) => (
+  <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+    {message}
+  </div>
+);
+
+const TipMessage = ({ message }) => (
+  <div className="mt-6 bg-blue-50 p-4 rounded-xl">
+    <p className="text-sm text-gray-700">💡 <strong>Tip:</strong> {message}</p>
+  </div>
+);
+
+const VideoPlaceholder = () => (
+  <div className="bg-gray-900 rounded-2xl overflow-hidden aspect-video flex items-center justify-center">
+    <div className="text-center text-white">
+      <Video size={64} className="mx-auto mb-4 opacity-50" />
+      <p className="text-xl font-semibold mb-2">No hay video 360° disponible</p>
+      <p className="text-gray-400">Este contenido estará disponible próximamente</p>
+    </div>
+  </div>
+);
+
+const ReservaCTA = ({ onReservar }) => (
+  <div className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-2xl border border-purple-200">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        <p className="text-sm text-gray-600 mb-1">¿Todo listo para la aventura?</p>
+        <p className="text-2xl font-black text-gray-900">Reserva tu experiencia ahora</p>
+      </div>
+      <button 
+        onClick={onReservar}
+        className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl hover:shadow-xl transition-all transform hover:scale-105 whitespace-nowrap"
+      >
+        Reservar
+      </button>
+    </div>
+  </div>
+);
+
+const ActivityDescription = ({ name, description }) => (
+  <div>
+    <h4 className="text-2xl font-bold text-gray-900 mb-3">{name}</h4>
+    <p className="text-gray-700 text-lg leading-relaxed">
+      {description || "Este deporte extremo combina adrenalina, técnica y conexión con la naturaleza. Perfecto para aventureros que buscan desafiar sus límites en los paisajes más impresionantes de Bolivia."}
+    </p>
+  </div>
+);
+
+const RecomendacionesBox = ({ recomendaciones }) => (
+  <div className="bg-blue-50 p-6 rounded-2xl border border-blue-200">
+    <h5 className="font-bold text-lg text-gray-900 mb-3">💡 Recomendaciones</h5>
+    <p className="text-gray-700 whitespace-pre-line">{recomendaciones}</p>
+  </div>
+);
+
+const ActivityStats = ({ nivel, duracion }) => (
+  <div className="grid grid-cols-2 gap-4">
+    <StatCard
+      bgColor="from-green-50 to-emerald-50"
+      borderColor="border-green-200"
+      label="Nivel de Riesgo"
+      value={nivel || "Medio"}
+    />
+    <StatCard
+      bgColor="from-blue-50 to-cyan-50"
+      borderColor="border-blue-200"
+      label="Duración"
+      value={duracion || "Medio día"}
+    />
+  </div>
+);
+
+const StatCard = ({ bgColor, borderColor, label, value }) => (
+  <div className={`bg-gradient-to-br ${bgColor} p-4 rounded-xl border ${borderColor}`}>
+    <p className="text-xs text-gray-600 font-semibold mb-1">{label}</p>
+    <p className="text-lg font-bold text-gray-900">{value}</p>
+  </div>
+);
+
+const Modelo3DPreview = () => (
+  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200">
+    <h4 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+      <svg className="w-6 h-6 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+      </svg>
+      Vista 3D del Equipamiento
+    </h4>
+    
+    <div id="model-3d-container" className="w-full h-[500px] bg-white rounded-xl shadow-inner relative overflow-hidden">
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+        <svg className="w-24 h-24 mb-4 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+        <p className="text-lg font-semibold">Modelo 3D del equipo</p>
+        <p className="text-sm mt-2">Arrastra para rotar · Scroll para zoom</p>
+      </div>
+    </div>
+
+    <div className="mt-4 flex justify-center gap-3">
+      <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-semibold">
+        🔄 Resetear vista
+      </button>
+    </div>
+  </div>
+);
+
+const EquipamientoList = ({ items }) => (
+  <div className="space-y-4">
+    {items.map((item, index) => (
+      <EquipamientoItem key={index} {...item} />
+    ))}
+  </div>
+);
+
+const EquipamientoItem = ({ nombre, imagen, incluido, descripcion }) => (
+  <div className="bg-white border-2 border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all flex">
+    <div className="relative w-32 h-32 flex-shrink-0">
+      <img
+        src={imagen}
+        alt={nombre}
+        className="w-full h-full object-cover"
+      />
+      <div className={`absolute top-2 right-2 ${incluido ? 'bg-green-600' : 'bg-amber-600'} text-white px-2 py-1 rounded-full text-xs font-bold`}>
+        {incluido ? '✓ Incluido' : 'Traer'}
+      </div>
+    </div>
+    
+    <div className="p-4 flex-1">
+      <h4 className="font-bold text-gray-900 mb-1 text-lg">{nombre}</h4>
+      <p className="text-sm text-gray-600">{descripcion}</p>
+    </div>
+  </div>
+);
+
+/* ============================================================================
+   COMPONENTE PRINCIPAL: Section1
+   ============================================================================ */
+const Section1 = () => {
+  const [regions, setRegions] = useState([]);
+  const [hoveredRegion, setHoveredRegion] = useState(null);
+  const [selectedRegion, setSelectedRegion] = useState(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [modalState, setModalState] = useState({
+    video360: false,
+    deporte: false,
+    equipo: false,
+    reserva: false
+  });
+
+  const navigate = useNavigate();
+
+  // Cargar actividades desde la API
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE_URL}/actividades/public`);
+        
+        if (!res.ok) throw new Error("Error al cargar actividades");
+        
+        const data = await res.json();
+
+        const formatted = data.map(formatActividad);
+        setRegions(formatted);
+      } catch (err) {
+        console.error("Error cargando actividades:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchActivities();
+  }, []);
+
+  // Formatear datos de la API al formato interno
+  const formatActividad = (item) => ({
+    id: item._id,
+    name: item.nombre,
+    department: item.ubicacion?.departamento || "Bolivia",
+    sport: item.categoria || item.nombre,
+    nivel: item.nivelRiesgo || "Medio",
+    duracion: item.duracion || "Medio día",
+    capacidadMaxima: item.capacidadMaxima || 10,
+    precio: item.precio || 0,
+    actividades: [item.nombre],
+    altitud: item.ubicacion?.altitud || "N/D",
+    temporada: item.temporada || "Todo el año",
+    recomendaciones: item.recomendaciones || "",
+    coordinates: [
+      item.ubicacion?.coordinates?.[1] || -16.5,
+      item.ubicacion?.coordinates?.[0] || -68.15,
+    ],
+    images: item.multimedia?.imagenes || [
+      "https://images.pexels.com/photos/26871874/pexels-photo-26871874.jpeg"
+    ],
+    video360: item.multimedia?.videos360?.[0] || null,
+    description: item.descripcion || "Actividad de deportes extremos en Bolivia",
+    color: NIVEL_CONFIG[item.nivelRiesgo]?.color || NIVEL_CONFIG.Medio.color,
+    gradient: NIVEL_CONFIG[item.nivelRiesgo]?.gradient || NIVEL_CONFIG.Medio.gradient
+  })
+  
+  ;
+
+  // Manejadores de eventos
+  const handleHoverRegion = (region, event) => {
+    setHoveredRegion(region);
+    if (event) {
+      setMousePosition({ x: event.clientX, y: event.clientY });
+    }
+  };
+
+  const handleImageClick = (type) => {
+    setModalState(prev => ({ ...prev, [type]: true }));
+  };
+
+  const closeModal = (type) => {
+    setModalState(prev => ({ ...prev, [type]: false }));
+  };
+
+  const closeAllModals = () => {
+    setModalState({
+      video360: false,
+      deporte: false,
+      equipo: false,
+      reserva: false
+    });
+  };
+
+  const handleReservar = () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+    
+    closeAllModals();
+    setModalState(prev => ({ ...prev, reserva: true }));
+  };
+
+  // Renderizado condicional
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState error={error} onRetry={() => window.location.reload()} />;
+  if (regions.length === 0) return <EmptyState />;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 p-4 sm:p-6">
+      <HeaderStats regions={regions} />
+      
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-white rounded-3xl shadow-2xl border border-red-100 overflow-hidden">
+          <MapSection
+            regions={regions}
+            onSelectRegion={setSelectedRegion}
+            onHoverRegion={handleHoverRegion}
+          />
+        </div>
+      </div>
+
+      {hoveredRegion && (
+        <HoverTooltip 
+          region={hoveredRegion} 
+          position={mousePosition} 
+        />
+      )}
+
+      {selectedRegion && (
+        <ActivityModal
+          region={selectedRegion}
+          onClose={() => setSelectedRegion(null)}
+          onImageClick={handleImageClick}
+          onReservar={handleReservar}
+          getNivelColor={getNivelColor}
+        />
+      )}
+
+      <Video360Modal 
+        isOpen={modalState.video360} 
+        onClose={() => closeModal('video360')}
+        videoUrl={selectedRegion?.video360}
+        activityName={selectedRegion?.name}
+        onReservar={handleReservar}
+      />
+      
+      <DeporteModal 
+        isOpen={modalState.deporte} 
+        onClose={() => closeModal('deporte')}
+        deporte={selectedRegion?.sport}
+        actividad={selectedRegion}
+        onReservar={handleReservar}
+      />
+      
+      <EquipoModal 
+        isOpen={modalState.equipo} 
+        onClose={() => closeModal('equipo')}
+        onReservar={handleReservar}
+      />
+      
+      <ReservaModal
+        isOpen={modalState.reserva}
+        onClose={() => closeModal('reserva')}
+        actividad={selectedRegion}
+      />
+
+      <GlobalStyles />
+    </div>
+  );
+};
+
+// Funciones auxiliares para el componente principal
+const getNivelColor = (nivel) => NIVEL_CONFIG[nivel]?.color || NIVEL_CONFIG.Medio.color;
+const getNivelGradient = (nivel) => NIVEL_CONFIG[nivel]?.gradient || NIVEL_CONFIG.Medio.gradient;
+
+// Componentes del estado principal
+const LoadingState = () => (
+  <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 p-4 sm:p-6 flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+      <p className="text-gray-600 font-medium">Cargando actividades...</p>
+    </div>
+  </div>
+);
+
+const ErrorState = ({ error, onRetry }) => (
+  <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 p-4 sm:p-6 flex items-center justify-center">
+    <div className="text-center max-w-md">
+      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <X className="w-8 h-8 text-red-600" />
+      </div>
+      <p className="text-red-600 font-semibold mb-2">Error al cargar actividades</p>
+      <p className="text-gray-600 text-sm">{error}</p>
+      <button
+        onClick={onRetry}
+        className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
+      >
+        Reintentar
+      </button>
+    </div>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 p-4 sm:p-6 flex items-center justify-center">
+    <div className="text-center">
+      <p className="text-gray-600 font-medium">No hay actividades disponibles</p>
+    </div>
+  </div>
+);
+
+const HeaderStats = ({ regions }) => (
+  <div className="max-w-7xl mx-auto mb-8">
+    <div className="text-center mb-6">
+      <h1 className="text-4xl sm:text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 mb-3 drop-shadow-sm">
+        Bolivia · Deportes Extremos
+      </h1>
+      <p className="text-gray-600 text-lg font-medium">
+        Descubre actividades de aventura en tiempo real
+      </p>
+      
+      <div className="flex flex-wrap justify-center gap-4 mt-6">
+        <StatCardSimple
+          value={regions.length}
+          label="Actividades"
+          color="text-red-600"
+          borderColor="border-red-100"
+        />
+        <StatCardSimple
+          value={new Set(regions.map(r => r.department)).size}
+          label="Departamentos"
+          color="text-orange-600"
+          borderColor="border-orange-100"
+        />
+        <StatCardSimple
+          value="365"
+          label="Días/año"
+          color="text-amber-600"
+          borderColor="border-amber-100"
+        />
+      </div>
+    </div>
+  </div>
+);
+
+const StatCardSimple = ({ value, label, color, borderColor }) => (
+  <div className={`bg-white rounded-xl px-6 py-3 shadow-md border ${borderColor}`}>
+    <p className={`text-2xl font-bold ${color}`}>{value}</p>
+    <p className="text-sm text-gray-600">{label}</p>
+  </div>
+);
+
+const HoverTooltip = ({ region, position }) => (
+  <div
+    className="fixed z-50 pointer-events-none animate-fadeIn"
+    style={{
+      left: position.x + 20,
+      top: position.y - 140,
+    }}
+  >
+    <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-100 overflow-hidden max-w-sm">
+      <div className="relative h-40">
+        <img
+          src={region.images[0]}
+          alt={region.name}
+          className="w-full h-full object-cover"
+        />
+        <div className={`absolute inset-0 bg-gradient-to-t ${region.gradient} opacity-20`}></div>
+        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full">
+          <span className="text-xs font-bold text-gray-700">{region.nivel}</span>
+        </div>
+        {region.video360 && (
+          <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+            <Video size={12} />
+            360°
+          </div>
+        )}
+      </div>
+
+      <div className="p-4">
+        <h4 className="font-bold text-xl text-gray-900 mb-1">{region.name}</h4>
+        <p className="text-sm text-red-600 font-semibold mb-2 flex items-center gap-1">
+          <MapPin className="w-4 h-4" />
+          {region.department}
+        </p>
+        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{region.description}</p>
+        <div className={`flex items-center justify-between text-sm px-3 py-2 rounded-lg bg-gradient-to-r ${region.gradient} bg-opacity-10`}>
+          <span className="font-semibold text-gray-700">{region.sport}</span>
+          <Zap className="w-4 h-4 text-orange-600" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const ActivityModal = ({ region, onClose, onImageClick, onReservar, getNivelColor }) => (
+  <div
+    className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fadeIn"
+    onClick={onClose}
+  >
+    <div
+      className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto animate-slideUp"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={`bg-gradient-to-r ${region.gradient} p-8 relative overflow-hidden`}>
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="relative z-10">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h3 className="text-4xl font-black text-white mb-2 drop-shadow-lg">
+                {region.name}
+              </h3>
+              <p className="text-white/90 text-lg font-medium flex items-center gap-2">
+                <MapPin className="w-5 h-5" />
+                {region.department}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-full p-3 transition-all backdrop-blur-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          
+          <div className="flex gap-3 flex-wrap">
+            <div className={`inline-flex items-center px-4 py-2 rounded-full ${getNivelColor(region.nivel)} border-2 font-bold text-sm`}>
+              <Trophy className="w-4 h-4 mr-2" />
+              Nivel: {region.nivel}
+            </div>
+            {region.video360 && (
+              <div className="inline-flex items-center px-4 py-2 rounded-full bg-red-600 text-white font-bold text-sm">
+                <Video className="w-4 h-4 mr-2" />
+                Video 360° disponible
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <div className="space-y-4">
+            <ImageMosaic 
+              images={region.images} 
+              maxImages={MAX_MOSAIC_IMAGES}
+              onImageClick={onImageClick}
+              hasVideo360={!!region.video360}
+            />
+            
+            <div className="grid grid-cols-2 gap-3">
+              <DetailCard 
+                label="Altitud" 
+                value={region.altitud}
+                bgColor="from-red-50 to-orange-50"
+                borderColor="border-red-100"
+              />
+              <DetailCard 
+                label="Temporada" 
+                value={region.temporada}
+                bgColor="from-orange-50 to-amber-50"
+                borderColor="border-orange-100"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <ActivityDescription 
+              name={region.name}
+              description={region.description}
+            />
+
+            <div className="space-y-3">
+              <FeatureCard
+                icon={<Mountain className="w-6 h-6 text-green-600" />}
+                label="Categoría"
+                value={region.sport}
+                bgColor="from-green-50 to-emerald-50"
+                borderColor="border-green-100"
+              />
+
+              <FeatureCard
+                icon={<Clock className="w-6 h-6 text-blue-600" />}
+                label="Duración"
+                value={region.duracion}
+                bgColor="from-blue-50 to-cyan-50"
+                borderColor="border-blue-100"
+              />
+
+              <FeatureCard
+                icon={<Users className="w-6 h-6 text-purple-600" />}
+                label="Capacidad máxima"
+                value={`${region.capacidadMaxima} personas`}
+                bgColor="from-purple-50 to-pink-50"
+                borderColor="border-purple-100"
+              />
+
+              <div className={`flex items-center gap-4 p-4 rounded-xl border-2 ${getNivelColor(region.nivel)}`}>
+                <Zap className="w-6 h-6 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-medium opacity-75">Nivel de dificultad</p>
+                  <p className="text-base font-bold">{region.nivel}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {region.precio > 0 && (
+          <PrecioCard 
+            precio={region.precio}
+            gradient={region.gradient}
+            onReservar={onReservar}
+          />
+        )}
+      </div>
+    </div>
+  </div>
+);
+
+const DetailCard = ({ label, value, bgColor, borderColor }) => (
+  <div className={`bg-gradient-to-br ${bgColor} rounded-xl p-4 border ${borderColor}`}>
+    <p className="text-xs text-gray-600 mb-1">{label}</p>
+    <p className="text-lg font-bold text-gray-900">{value}</p>
+  </div>
+);
+
+const FeatureCard = ({ icon, label, value, bgColor, borderColor }) => (
+  <div className={`flex items-center gap-4 bg-gradient-to-r ${bgColor} p-4 rounded-xl border ${borderColor}`}>
+    {icon}
+    <div>
+      <p className="text-xs text-gray-600 font-medium">{label}</p>
+      <p className="text-base font-bold text-gray-900">{value}</p>
+    </div>
+  </div>
+);
+
+const PrecioCard = ({ precio, gradient, onReservar }) => (
+  <div className="flex items-center justify-between p-6 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+    <div>
+      <p className="text-sm text-gray-600 mb-1">Precio por persona</p>
+      <p className="text-3xl font-black text-gray-900">
+        Bs. {precio.toLocaleString()}
+      </p>
+      <p className="text-xs text-gray-500 mt-1">
+        * Descuentos disponibles según tipo de tour
+      </p>
+    </div>
+    <button 
+      onClick={onReservar}
+      className={`bg-gradient-to-r ${gradient} text-white font-bold py-4 px-8 rounded-xl hover:shadow-xl transition-all duration-300 transform hover:scale-105`}
+    >
+      Reservar ahora
+    </button>
+  </div>
+);
+
+const GlobalStyles = () => (
+  <style jsx>{`
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.2s ease-out;
+    }
+    .animate-slideUp {
+      animation: slideUp 0.3s ease-out;
+    }
+  `}</style>
+);
+
+export default Section1;

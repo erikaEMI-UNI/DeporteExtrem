@@ -1,0 +1,481 @@
+
+//
+
+"use client"
+
+import { useEffect,useState,useRef } from "react"
+//import "../../Components/a/Section2"
+//para mapa
+//import maplibregl from "maplibre-gl";
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from "react-leaflet";
+//import "leaflet/dist/leaflet.css";
+//import L from "leaflet"
+
+//import { obtenerActividades } from "../../services/actividadService"; //para mapa
+
+//const [selectedActividad, setSelectedActividad] = useState(null);
+//const [isModalOpen, setIsModalOpen] = useState(false);
+
+
+// Iconos SVG
+
+
+
+const X = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m18 6-12 12" />
+    <path d="m6 6 12 12" />
+  </svg>
+)
+
+const MapPin = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+)
+
+const Mountain = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+  </svg>
+)
+
+const Camera = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+    <circle cx="12" cy="13" r="3" />
+  </svg>
+)
+const Navigation = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polygon points="3,11 22,2 13,21 11,13 3,11" />
+  </svg>
+)
+ // COMENTADO 
+
+const Zap = ({ className = "", size = 24 }) => (
+  <svg
+    className={className}
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polygon points="13,2 3,14 12,14 11,22 21,10 12,10 13,2" />
+  </svg>
+)
+
+// Componente Button
+const Button = ({ variant = "default", size = "md", className = "", children, onClick, ...props }) => {
+  const baseClasses =
+    "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
+
+  const variants = {
+    default: "bg-blue-600 text-white hover:bg-blue-700",
+    outline: "border border-gray-300 hover:bg-gray-50 hover:text-gray-900",
+    ghost: "hover:bg-gray-100 hover:text-gray-900",
+  }
+
+  const sizes = {
+    sm: "h-9 px-3 text-sm",
+    md: "h-10 py-2 px-4",
+    lg: "h-11 px-8",
+  }
+
+  return (
+    <button className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} onClick={onClick} {...props}>
+      {children}
+    </button>
+  )
+}
+  
+
+
+/* Configuración de icono personalizado para Leaflet
+const customIcon = new L.Icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+})//IMPLEMENTADO */
+// 
+
+
+// Componente principal*IMAGEN 
+const BoliviaMapSection = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedRegion, setSelectedRegion] = useState(null)
+  const [hoveredRegion, setHoveredRegion] = useState(null)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+
+  const extremeSportsRegions = [
+    {
+      id: "lapaz",
+      name: "La Paz",
+      department: "La Paz",
+      sport: "Montañismo y Aventura",
+      position: { top: "40%", left: "30%" },//
+      //coordinates: [-16.4897, -68.1193],
+      color: "bg-blue-500",
+      image:
+        "https://scontent.fcbb1-1.fna.fbcdn.net/v/t1.6435-9/89124675_2462509737187891_421002727397523456_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=127cfc&_nc_ohc=sgqiOYMmgMIQ7kNvwGs03dx&_nc_oc=AdnBYSC9Y9JkWSFS8yZIftWfrgcuWrE5vltuI9k5y1yMDVgkbSUbL4RVALRcaqRFXuvZoppC9p8M8Te3gBu1VBf0&_nc_zt=23&_nc_ht=scontent.fcbb1-1.fna&_nc_gid=C50C1fH5bnNsPFK0L0WKJg&oh=00_AfJphUEeAmbt_F20sQRhw1MtmszK2lLE2gpeOwvUjocYTQ&oe=685AEF9A",
+      description: "Ciudad más alta del mundo con paisajes únicos",
+    },
+    {
+      id: "santacruz",
+      name: "Santa Cruz",
+      department: "Santa Cruz",
+      sport: "Aventura Selvática",
+      coordinates: [-17.7833, -63.1821],//position: { top: "55%", left: "65%" },
+      color: "bg-green-500",
+      image:
+        "https://scontent.fcbb1-1.fna.fbcdn.net/v/t1.6435-9/125836558_3118806368224888_3435235307057799256_n.jpg?_nc_cat=105&ccb=1-7&_nc_sid=127cfc&_nc_ohc=ib57M00vHRUQ7kNvwGKCYrb&_nc_oc=AdlpUrGVx1gQ3o2tP47zuPukObxrtoCnspMOMjED1iSh1BKDw9alejjwL7tX_3ALGHlqhwihE5Osw4U_0VtjBen-&_nc_zt=23&_nc_ht=scontent.fcbb1-1.fna&_nc_gid=qb8EAjbriSR6vr_UbetHzA&oh=00_AfK266IBnvuyzPsLiatdKyUABEi8PiZAeBjBDrG5F-4dSA&oe=685B03F5",
+      description: "Puerta de entrada a la Amazonía boliviana",
+    },
+    {
+      id: "cochabamba",
+      name: "Cochabamba",
+      department: "Cochabamba",
+      sport: "Montañismo y Trekking",
+      coordinates: [-17.3935, -66.1570],//position: { top: "50%", left: "45%" },
+      color: "bg-orange-500",
+      image:
+        "https://scontent.fcbb1-2.fna.fbcdn.net/v/t1.6435-9/127909765_3152545214851003_6599369331815604639_n.jpg?_nc_cat=103&ccb=1-7&_nc_sid=127cfc&_nc_ohc=IWpT6qpTvt0Q7kNvwHctKtd&_nc_oc=Admg7UvSsxacJNHtAqmtLBIdh_dF-tpTVU9JyqE8KTwh_arh2BKqgIhKygRssNjB_oP7lsOP1NpZCEgatN8YMvJy&_nc_zt=23&_nc_ht=scontent.fcbb1-2.fna&_nc_gid=DjX5Cm_nbHyaH5yaN-Uc9g&oh=00_AfIKxI_Pr1xdxUDQlC64p-49AvCtWttDkwDe2EBp6_mWlg&oe=685B0AB7",
+      description: "Valle central con clima perfecto todo el año",
+    },
+  ];
+  
+  const handleRegionClick = (act) => {
+    setSelectedRegion(act)
+    setIsModalOpen(true)
+  }
+  
+  
+
+  /*aumentando  /
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  useEffect(() => {
+    if (mapRef.current || !mapContainerRef.current) return; // Verifica que el contenedor sea válido
+
+    mapRef.current = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: "https://api.maptiler.com/maps/hybrid-v4/style.json?key=F9w0jIIX0voFsVRWF3O8",
+      center: [-64.685, -16.290], // Bolivia
+      zoom: 4,
+      pitch: 45,
+      bearing: -10,
+    });
+
+    mapRef.current.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    mapRef.current.on("load", () => {
+      extremeSportsRegions.forEach((region) => {
+        const el = document.createElement("div");
+        el.className = "marker";
+
+        el.style.width = "20px";
+        el.style.height = "20px";
+        el.style.backgroundColor = "#ef4444";
+        el.style.borderRadius = "50%";
+        el.style.border = "3px solid white";
+        el.style.cursor = "pointer";
+        el.style.boxShadow = "0 0 10px rgba(0,0,0,.5)";
+
+        el.addEventListener("mouseenter", () => setHoveredRegion(region));
+        el.addEventListener("mouseleave", () => setHoveredRegion(null));
+        el.addEventListener("click", () => {
+          setSelectedRegion(region);
+          setIsModalOpen(true);
+        });
+
+        new maplibregl.Marker(el)
+          .setLngLat([region.coordinates[1], region.coordinates[0]])
+          .addTo(mapRef.current);
+      });
+    });
+  }, [mapContainerRef]);
+
+
+
+  // fin aumentado  */
+
+
+  
+  const handleMouseEnter = (region, event) => {
+    setHoveredRegion(region)
+    setMousePosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const handleMouseMove = (event) => {
+    setMousePosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const handleMouseLeave = () => {
+    setHoveredRegion(null)
+  }
+ 
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-100 p-6">
+      {/* Mapa Grande */}
+      <div className="max-w-6xl mx-auto">
+        <div className="relative bg-gradient-to-br from-green-100 to-blue-200 rounded-3xl p-8 shadow-2xl overflow-hidden">
+          {/* Título */}
+          <div className="text-center mb-8">
+            <h1 className="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-orange-500 mb-4">
+              Bolivia
+            </h1>
+            <h2 className="text-3xl font-bold text-red-500 mb-4">Deportes Extremos</h2>
+            <p className="text-gray-700 text-lg">🎯 Haz clic en los puntos para explorar cada departamento</p>
+          </div>
+
+          {/* Mapa real de Bolivia - MÁS GRANDE */}
+          <div className="relative w-full h-[600px] rounded-2xl shadow-inner overflow-hidden">
+          {/*  <div
+            ref={mapContainerRef}
+            className="w-full h-[600px] 
+            rounded-2xl shadow-inner">*/}
+            {/*<img
+              src="https://media.istockphoto.com/id/1460854917/es/vector/bandera-del-mapa-punteado-de-bolivia-con-textura-grunge-en-estilo-de-punto-de-mosaico.jpg?s=2048x2048&w=is&k=20&c=fK4U1TAToSTbXqXoij9YZxcc-WTOTXbNgTInYO2g_Z8="
+              alt="Mapa de Bolivia con textura de mosaico"
+              className="w-full h-full object-cover rounded-2xl"
+            />*/}
+
+            <MapContainer
+              center={[-16.2902, -63.5887]} // Centro de Bolivia
+              zoom={5}
+              className="w-full h-full rounded-2xl z-0"
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution="© OpenStreetMap contributors"
+              />
+
+              {extremeSportsRegions.map((region) => (
+                region.coordinates && (
+                  <CircleMarker
+                    key={region.id}
+                    center={region.coordinates}
+                    radius={10}
+                    pathOptions={{
+                      color: "#ffffff",
+                      fillColor: region.color.includes("blue")
+                        ? "#3b82f6"
+                        : region.color.includes("green")
+                        ? "#22c55e"
+                        : "#f97316",
+                      fillOpacity: 0.9,
+                    }}
+                    eventHandlers={{
+                      click: () => {
+                        setSelectedRegion(region)
+                        setIsModalOpen(true)
+                      },
+                      mouseover: (e) => handleMouseEnter(region, e.originalEvent),
+                      mouseout: handleMouseLeave,
+                    }}
+                  >
+                    <Popup>
+                      <strong>{region.name}</strong>
+                      <br />
+                      {region.sport}
+                    </Popup>
+                  </CircleMarker>
+                )
+              ))}
+            </MapContainer>
+            
+            {/*aca termina 
+            la integracion 
+            
+          
+            */}
+
+            {/* Overlay para mejor contraste */}
+            <div className="absolute inset-0 bg-black bg-opacity-10 rounded-2xl"></div>
+
+            {/* Puntos de departamentos */}
+            {extremeSportsRegions.map((region) => (
+              <div
+                key={region.id}
+                className={`absolute w-8 h-8 ${region.color} rounded-full cursor-pointer transform transition-all duration-300 hover:scale-150 hover:shadow-xl animate-pulse border-4 border-white shadow-lg z-10`}
+                style={region.position}
+                onClick={() => handleRegionClick(region)}
+                onMouseEnter={(e) => handleMouseEnter(region, e)}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              >
+                {/* Efecto de ondas */}
+                <div className={`absolute inset-0 ${region.color} rounded-full animate-ping opacity-75`}></div>
+                {/* Icono en el centro */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-white" />
+                </div>
+              </div>
+            ))}
+
+            {/* Efectos decorativos */}
+            <div className="absolute top-6 right-6 text-4xl animate-bounce drop-shadow-lg">🏔️</div>
+            <div className="absolute bottom-6 left-6 text-4xl animate-pulse drop-shadow-lg">🚴</div>
+            <div className="absolute top-1/2 left-1/4 text-3xl drop-shadow-lg">⭐</div>
+            <div className="absolute top-8 left-8 text-2xl animate-bounce drop-shadow-lg">🦅</div>
+            <div className="absolute bottom-8 right-8 text-2xl animate-pulse drop-shadow-lg">🏕️</div>
+          </div>
+        </div>
+      </div>
+      {/* Vista previa al hacer hover */}
+      {hoveredRegion && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: mousePosition.x + 20,
+            top: mousePosition.y - 120,
+            transform: "translateY(-50%)",
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl border-4 border-gray-200 overflow-hidden max-w-sm animate-fade-in">
+            <img
+              src={hoveredRegion.image || "/placeholder.svg"}
+              alt={hoveredRegion.name}
+              className="w-full h-40 object-cover"
+            />
+            <div className="p-6">
+              <h4 className="font-bold text-xl text-gray-800 mb-2">{hoveredRegion.name}</h4>
+              <p className="text-sm text-blue-600 font-semibold mb-2">📍 Departamento de {hoveredRegion.department}</p>
+              <p className="text-sm text-gray-600 mb-3">{hoveredRegion.description}</p>
+              <div className="flex items-center text-sm text-orange-600">
+                <Zap className="w-4 h-4 mr-2" />
+                {hoveredRegion.sport}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal/Ventana Emergente */}
+      {isModalOpen && selectedRegion && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-4 border-red-200">
+            <div className="p-8">
+              {/* Header del modal */}
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-4xl font-bold text-gray-800 flex items-center">🏔️ {selectedRegion.name}</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 hover:bg-red-100 rounded-full p-3"
+                >
+                  <X className="w-8 h-8" />
+                </Button>
+              </div>
+
+              {/* Contenido principal del modal */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Imagen grande */}
+                <div>
+                  <img
+                    src={selectedRegion.image || "/placeholder.svg"}
+                    alt={`Vista de ${selectedRegion.name}`}
+                    className="w-full h-80 object-cover rounded-2xl shadow-lg border-4 border-gray-200"
+                  />
+                </div>
+
+                {/* Información */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-2xl font-bold text-gray-800 mb-4">
+                      📍 Departamento de {selectedRegion.department}
+                    </h4>
+                    <p className="text-gray-700 text-lg leading-relaxed mb-6">{selectedRegion.description}</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center text-lg text-gray-700 bg-green-50 p-4 rounded-xl">
+                      <Mountain className="w-6 h-6 mr-4 text-green-600" />
+                      <span className="font-semibold">Especialidad:</span>
+                      <span className="ml-2">{selectedRegion.sport}</span>
+                    </div>
+                    <div className="flex items-center text-lg text-gray-700 bg-blue-50 p-4 rounded-xl">
+                      <MapPin className="w-6 h-6 mr-4 text-blue-600" />
+                      <span className="font-semibold">Ubicación:</span>
+                      <span className="ml-2">Bolivia, Sudamérica</span>
+                    </div>
+                    <div className="flex items-center text-lg text-gray-700 bg-yellow-50 p-4 rounded-xl">
+                      <Zap className="w-6 h-6 mr-4 text-yellow-600" />
+                      <span className="font-semibold">Nivel:</span>
+                      <span className="ml-2">Basico ⚡</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function App() {
+  return <BoliviaMapSection />
+}
+
+export default App
